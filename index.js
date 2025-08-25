@@ -12,6 +12,8 @@ function resizeCanvas() {
 addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
+const score = { "blue": 0, "green": 0 };
+
 class Boundary {
     constructor(x, y, radius) {
         this.x = x;
@@ -81,23 +83,26 @@ class Electron {
         this.y = boundary.y + Math.sin(Math.PI * 2 * position) * boundary.radius * 0.95;
 
         // calculate angle from electron position to boundary center
-        const angle = Math.atan2(boundary.y - this.y, boundary.x - this.x);
+        const angle = Math.atan2(boundary.y - this.y, boundary.x - this.x);//  + Math.PI; // add PI to go tangentially
 
         this.speed = 4; // default speed
         this.dx = Math.cos(angle) * this.speed;
         this.dy = Math.sin(angle) * this.speed;
         this.size = 8;
         this.annihilate = false;
+        this.color = "white";
     }
     update() {
         this.x += this.dx;
         this.y += this.dy;
     }
     draw() {
-        view.fillStyle = "red";
+        const oldFillStyle = view.fillStyle;
+        view.fillStyle = this.color;
         view.beginPath();
         view.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         view.fill();
+        view.fillStyle = oldFillStyle;
     }
     checkBoundaryCollision() {
         const dist = Math.hypot(this.x - this.boundary.x, this.y - this.boundary.y);
@@ -139,6 +144,8 @@ class Electron {
 
                 this.dx = vectorToCenter.x * this.speed;
                 this.dy = vectorToCenter.y * this.speed;
+
+                this.color = d.color;
             }
         }
 
@@ -178,40 +185,26 @@ class Atom {
         this.electrons = [];
         this.deflectors = [];
 
-        const numOuterNucleons = 10;
-        for (let i = 0; i < numOuterNucleons; i++) {
-            const angle = (i / numOuterNucleons) * Math.PI * 2;
-            const distance = this.boundary.innerRadius * numOuterNucleons * 0.1; // Adjust distance from center
-            const x = this.boundary.x + Math.cos(angle) * distance;
-            const y = this.boundary.y + Math.sin(angle) * distance;
-            this.nucleons.push(new Nucleon(this.boundary, x, y, angle, distance));
-        }
-
-        // another ring of nucleons closer to the center of the boundary
-        const numMiddleNucleons = 5;
-        for (let i = 0; i < numMiddleNucleons; i++) {
-            const angle = (i / numMiddleNucleons) * Math.PI * 2;
-            const distance = this.boundary.innerRadius * numMiddleNucleons * 0.1;
-            const x = this.boundary.x + Math.cos(angle) * distance;
-            const y = this.boundary.y + Math.sin(angle) * distance;
-            this.nucleons.push(new Nucleon(this.boundary, x, y, angle, distance, -1));
-        }
-
-        // another ring of nucleons even closer to the center of the boundary
-        const numInnerNucleons = 3;
-        for (let i = 0; i < numInnerNucleons; i++) {
-            const angle = (i / numInnerNucleons) * Math.PI * 2;
-            const distance = this.boundary.innerRadius * numInnerNucleons * 0.1;
-            const x = this.boundary.x + Math.cos(angle) * distance;
-            const y = this.boundary.y + Math.sin(angle) * distance;
-            this.nucleons.push(new Nucleon(this.boundary, x, y, angle, distance));
-        }
+        this.createShell(100, 1.2);
+        this.createShell(80, 1, -1);
+        this.createShell(60, 0.8);
+        this.createShell(40, 0.6, -1);
+        this.createShell(20, 0.4);  
 
         this.electrons.push(new Electron(this.boundary, 0));
         this.electrons.push(new Electron(this.boundary, 0.75));
 
         this.deflectors.push(new Deflector(this.boundary, 0, "blue"));
         this.deflectors.push(new Deflector(this.boundary, 0.5, "green"));
+    }
+    createShell(numNucleons, distanceFactor, direction) {
+        const distance = this.boundary.innerRadius * distanceFactor;
+        for (let i = 0; i < numNucleons; i++) {
+            const angle = (i / numNucleons) * Math.PI * 2;
+            const x = this.boundary.x + Math.cos(angle) * distance;
+            const y = this.boundary.y + Math.sin(angle) * distance;
+            this.nucleons.push(new Nucleon(this.boundary, x, y, angle, distance, direction));
+        }
     }
     update() {
         for (const n of this.nucleons) n.update();
@@ -264,6 +257,7 @@ class Atom {
                     e.dx = Math.cos(angle) * speed;
                     e.dy = Math.sin(angle) * speed;
                     n.active = false; // Deactivate nucleon on collision
+                    score[e.color] += 10;
                 }
             }
         }
@@ -274,6 +268,7 @@ const atom = new Atom();
 
 function animate() {
     view.clearRect(0, 0, canvas.width, canvas.height);
+    view.fillText(`Score: Blue ${score.blue}  Green ${score.green}`, 20, 40);
     //if (Key.Down("ArrowLeft")) paddle1.rotateNeg();
     //if (Key.Down("ArrowRight")) paddle1.rotatePos();
     atom.step();

@@ -3,24 +3,25 @@ import { Key } from './Keys.js';
 const view = document.querySelector("canvas").getContext("2d");
 const canvas = view.canvas;
 view.lineCap = "round";
-let ring = null;
+let atom = null;
 function resizeCanvas() {
     view.canvas.width = innerWidth;
     view.canvas.height = innerHeight;
-    ring?.resize();
+    atom?.resize();
+    view.font = "48px arial";
 }
 addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-const score = { "blue": 0, "green": 0 };
+const score = { "blue": 0, "lime": 0, "red": 0, "cyan": 0 };
 
 class Boundary {
     constructor(x, y, radius) {
         this.x = x;
         this.y = y;
         this.radius = radius;
-        const nucleusFactor = 0.5;
-        this.innerRadius = radius * nucleusFactor;
+        //const nucleusFactor = 0.5;
+        //this.innerRadius = radius * nucleusFactor;
     }
     resize() {
         this.x = canvas.width / 2;
@@ -46,7 +47,7 @@ class Deflector { // paddle
     }
     update() {
         // Update paddle position or other properties if needed
-        const offset = Math.PI / 2; // zero = north (not east)
+        const offset = Math.PI / 2; // so that zero = north (not east)
         this.rotate();
         this.startAngle = (this.pos - this.size / 2) * Math.PI * 2 - offset;
         this.endAngle = (this.pos + this.size / 2) * Math.PI * 2 - offset;
@@ -77,6 +78,7 @@ class Deflector { // paddle
 }
 
 class Electron {
+    static radius = 8;
     constructor(boundary, position) {
         this.boundary = boundary;
         this.x = boundary.x + Math.cos(Math.PI * 2 * position) * boundary.radius * 0.95;
@@ -100,8 +102,9 @@ class Electron {
         const oldFillStyle = view.fillStyle;
         view.fillStyle = this.color;
         view.beginPath();
-        view.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        view.arc(this.x, this.y, Electron.radius, 0, Math.PI * 2);
         view.fill();
+        view.stroke();
         view.fillStyle = oldFillStyle;
     }
     checkBoundaryCollision() {
@@ -150,30 +153,34 @@ class Electron {
         }
 
     }
+    resize() {
+        Electron.radius = this.boundary.radius / 100;
+    }
 }
 
 class Nucleon {
-    constructor(boundary, x, y, angle, distance, direction = 1) {
+    static radius = 8;
+    constructor(boundary, angle, distance, direction = 1) {
         this.boundary = boundary;
-        this.x = x;
-        this.y = y;
         this.angle = angle;
         this.distance = distance;
+        this.x = this.boundary.x + Math.cos(angle) * this.distance * this.boundary.radius;
+        this.y = this.boundary.y + Math.sin(angle) * this.distance * this.boundary.radius;
         this.direction = direction;
-        this.size = 8;
+        //this.size = 8;
         this.active = true;
     }
     update() {
         if (!this.active) return;
         this.angle += 0.01 * this.direction; // Rotate around the boundary
-        this.x = this.boundary.x + Math.cos(this.angle) * (this.distance);// * Math.sin(this.angle * 2));
-        this.y = this.boundary.y + Math.sin(this.angle) * (this.distance);// * Math.sin(this.angle * 2));
+        this.x = this.boundary.x + Math.cos(this.angle) * this.distance * this.boundary.radius;// * Math.sin(this.angle * 2));
+        this.y = this.boundary.y + Math.sin(this.angle) * this.distance * this.boundary.radius;// * Math.sin(this.angle * 2));
     }
     draw() {
         if (!this.active) return;
         view.fillStyle = "yellow";
         view.beginPath();
-        view.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        view.arc(this.x, this.y, Nucleon.radius, 0, Math.PI * 2);
         view.fill();
     }
 }
@@ -185,25 +192,34 @@ class Atom {
         this.electrons = [];
         this.deflectors = [];
 
-        this.createShell(100, 1.2);
-        this.createShell(80, 1, -1);
-        this.createShell(60, 0.8);
-        this.createShell(40, 0.6, -1);
-        this.createShell(20, 0.4);  
+        this.createShell(100, 0.5);
+        this.createShell(80, 0.4, -1);
+        this.createShell(60, 0.3);
+        this.createShell(40, 0.2, -1);
+        this.createShell(20, 0.1);  
 
         this.electrons.push(new Electron(this.boundary, 0));
+        this.electrons.push(new Electron(this.boundary, 0.25));
+        this.electrons.push(new Electron(this.boundary, 0.5));
         this.electrons.push(new Electron(this.boundary, 0.75));
 
         this.deflectors.push(new Deflector(this.boundary, 0, "blue"));
-        this.deflectors.push(new Deflector(this.boundary, 0.5, "green"));
+        this.deflectors.push(new Deflector(this.boundary, 0.5, "lime"));
+        this.deflectors.push(new Deflector(this.boundary, 0.25, "red"));
+        this.deflectors.push(new Deflector(this.boundary, 0.75, "cyan"));
+    }
+    resize() {
+        this.boundary.resize();
+        Nucleon.radius = this.boundary.radius / 100;
+        Electron.radius = Nucleon.radius;
     }
     createShell(numNucleons, distanceFactor, direction) {
-        const distance = this.boundary.innerRadius * distanceFactor;
+        //const distance = this.boundary * distanceFactor;
         for (let i = 0; i < numNucleons; i++) {
             const angle = (i / numNucleons) * Math.PI * 2;
-            const x = this.boundary.x + Math.cos(angle) * distance;
-            const y = this.boundary.y + Math.sin(angle) * distance;
-            this.nucleons.push(new Nucleon(this.boundary, x, y, angle, distance, direction));
+            //const x = this.boundary.x + Math.cos(angle) * distance;
+            //const y = this.boundary.y + Math.sin(angle) * distance;
+            this.nucleons.push(new Nucleon(this.boundary, angle, distanceFactor, direction));
         }
     }
     update() {
@@ -250,25 +266,32 @@ class Atom {
             if (!n.active) continue;
             for (const e of this.electrons) {
                 const dist = Math.hypot(n.x - e.x, n.y - e.y);
-                if (dist < n.size + e.size) {
+                if (dist < Nucleon.radius + e.size) {
                     // Simple elastic collision response
                     const angle = Math.atan2(e.y - n.y, e.x - n.x);
                     const speed = Math.hypot(e.dx, e.dy);
                     e.dx = Math.cos(angle) * speed;
                     e.dy = Math.sin(angle) * speed;
                     n.active = false; // Deactivate nucleon on collision
-                    score[e.color] += 10;
+                    if (e.color !== "white") score[e.color] += 10;
                 }
             }
         }
     }
 }
 
-const atom = new Atom();
+atom = new Atom();
+atom.resize();
 
 function animate() {
     view.clearRect(0, 0, canvas.width, canvas.height);
-    view.fillText(`Score: Blue ${score.blue}  Green ${score.green}`, 20, 40);
+    //view.fillText(`Score: Blue ${score.blue}  Lime ${score.lime}`, 20, 40);
+    let line = 40;
+    for (const color in score) {
+        view.fillStyle = color;
+        view.fillText(score[color].toString(), 0, line);
+        line += 40;
+    }
     //if (Key.Down("ArrowLeft")) paddle1.rotateNeg();
     //if (Key.Down("ArrowRight")) paddle1.rotatePos();
     atom.step();
